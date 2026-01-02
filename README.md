@@ -2,6 +2,8 @@
 
 A FastAPI server that provides an OpenAI-compatible API interface to the local `codex` CLI tool. This allows you to use codex with tools like OpenWebUI and other applications that expect the OpenAI API format.
 
+This project also includes research and tooling for direct interaction with the ChatGPT backend Codex API.
+
 ## Features
 
 - OpenAI-compatible API endpoints (`/v1/chat/completions`, `/v1/models`)
@@ -10,6 +12,7 @@ A FastAPI server that provides an OpenAI-compatible API interface to the local `
 - Exposes codex as `codex-local` model
 - Automatic JSON event parsing for streaming
 - Comprehensive error handling and logging
+- Direct ChatGPT Codex API testing utilities
 
 ## Prerequisites
 
@@ -170,6 +173,161 @@ for chunk in stream:
     if chunk.choices[0].delta.content:
         print(chunk.choices[0].delta.content, end="", flush=True)
 print()
+```
+
+## Tool Calling / Function Calling
+
+The proxy supports OpenAI-style tool calling (function calling), allowing models to use functions you define. Tools are described to the model via the prompt, and the model can request to call them by returning structured JSON.
+
+### Basic Example
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="sk-local-key1"
+)
+
+# Define available tools
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get current weather for a location",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "City name, e.g. 'San Francisco'"
+                    },
+                    "unit": {
+                        "type": "string",
+                        "enum": ["celsius", "fahrenheit"]
+                    }
+                },
+                "required": ["location"]
+            }
+        }
+    }
+]
+
+# Make request with tools
+response = client.chat.completions.create(
+    model="codex-local",
+    messages=[{"role": "user", "content": "What's the weather in Paris?"}],
+    tools=tools
+)
+
+# Check if model wants to call a tool
+message = response.choices[0].message
+if message.tool_calls:
+    for tool_call in message.tool_calls:
+        print(f"Tool: {tool_call.function.name}")
+        print(f"Arguments: {tool_call.function.arguments}")
+        # Execute the function with these arguments
+```
+
+### Multi-Turn Tool Execution
+
+```python
+# 1. Initial request
+response = client.chat.completions.create(
+    model="codex-local",
+    messages=[{"role": "user", "content": "What's the weather in Paris?"}],
+    tools=tools
+)
+
+# 2. Check if tool was called
+if response.choices[0].message.tool_calls:
+    tool_call = response.choices[0].message.tool_calls[0]
+
+    # Execute your tool (example)
+    weather_data = {"temperature": 18, "condition": "partly cloudy"}
+
+    # 3. Send result back to model
+    messages = [
+        {"role": "user", "content": "What's the weather in Paris?"},
+        response.choices[0].message,  # Assistant's message with tool_calls
+        {
+            "role": "tool",
+            "tool_call_id": tool_call.id,
+            "name": "get_weather",
+            "content": json.dumps(weather_data)
+        }
+    ]
+
+    # 4. Get final response
+    final = client.chat.completions.create(
+        model="codex-local",
+        messages=messages,
+        tools=tools
+    )
+
+    print(final.choices[0].message.content)
+```
+
+### Streaming with Tools
+
+```python
+stream = client.chat.completions.create(
+    model="codex-local",
+    messages=[{"role": "user", "content": "Calculate 123 * 456"}],
+    tools=[...],
+    stream=True
+)
+
+for chunk in stream:
+    delta = chunk.choices[0].delta
+
+    if delta.content:
+        print(delta.content, end="", flush=True)
+
+    if delta.tool_calls:
+        for tc in delta.tool_calls:
+            print(f"\nTool call: {tc.function.name}")
+            print(f"Arguments: {tc.function.arguments}")
+
+print()
+```
+
+### How It Works
+
+1. **Tool Description**: Tools are included as natural language documentation in the system prompt
+2. **Model Decision**: The model decides whether to call a tool based on the user's request
+3. **Tool Call Format**: If calling a tool, the model returns JSON: `{"name": "tool_name", "arguments": {...}}`
+4. **Extraction**: The proxy extracts tool calls from the response and structures them in OpenAI format
+5. **Execution**: Your application executes the tool and sends results back
+6. **Continuation**: The model uses tool results to generate the final response
+
+### Implementation Notes
+
+- **Prompt-Based**: Tools are described in the prompt, not formally registered with codex CLI
+- **Best-Effort Parsing**: Tool calls are extracted via regex patterns from model output
+- **Validation**: Parameter validation should be done in your application code
+- **Streaming Support**: Tool calls are streamed as deltas when using `stream=True`
+
+### Limitations
+
+- Tool definitions are not validated by codex - they're documentation for the model
+- The model may occasionally hallucinate tools not in your list
+- Parallel tool calling is supported but depends on model behavior
+- No automatic parameter validation (implement in your code)
+
+### Testing
+
+Run the manual test script to verify tool calling:
+
+```bash
+python test_tools_manual.py
+```
+
+Run unit tests:
+
+```bash
+pytest tests/test_tools.py -v
 ```
 
 ## Integration with OpenWebUI
