@@ -18,9 +18,40 @@ This project also includes research and tooling for direct interaction with the 
 
 - Python 3.13+
 - [Codex CLI](https://github.com/openai/codex) installed and accessible
-- Virtual environment (recommended)
 
-## Installation
+## Quick Start with uvx (Recommended)
+
+The easiest way to run codex-proxy is using `uvx`, which doesn't require cloning the repository or managing virtual environments:
+
+```bash
+# Run directly from GitHub
+uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy
+```
+
+You can also pass command-line options:
+
+```bash
+# Run on custom host/port
+uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy --host 127.0.0.1 --port 8080
+
+# Run with auto-reload for development
+uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy --reload
+
+# Show help
+uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy --help
+```
+
+**Note**: You'll still need to configure environment variables. Create a `.env` file in your current directory:
+
+```bash
+# Download the example .env file
+curl -o .env https://raw.githubusercontent.com/yuvalraviv1/codex-proxy/main/.env.example
+
+# Edit it with your settings
+nano .env
+```
+
+## Installation (Traditional Method)
 
 1. Clone or download this repository
 
@@ -64,6 +95,21 @@ The following environment variables can be configured in your `.env` file:
 | `LOG_LEVEL` | Logging level (debug/info/warning/error) | `info` |
 
 ## Running the Server
+
+### Using the CLI Command (After Installation)
+
+If you installed the package:
+
+```bash
+# Basic usage
+codex-proxy
+
+# With custom host/port
+codex-proxy --host 127.0.0.1 --port 8080
+
+# With auto-reload for development
+codex-proxy --reload
+```
 
 ### Development Mode
 

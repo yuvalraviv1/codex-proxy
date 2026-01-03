@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "codex-proxy"
+version = "1.0.0"
+description = "OpenAI-compatible API proxy for local codex CLI"
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+authors = [
+    { name = "Yuval Raviv", email = "yuvalraviv1@users.noreply.github.com" }
+]
+keywords = ["codex", "openai", "proxy", "api", "fastapi"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yuvalraviv1/codex-proxy"
+Repository = "https://github.com/yuvalraviv1/codex-proxy"
+Issues = "https://github.com/yuvalraviv1/codex-proxy/issues"
+
+[project.scripts]
+codex-proxy = "app.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
