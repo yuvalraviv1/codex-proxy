@@ -38,7 +38,11 @@ def get_executor(model: str) -> BaseExecutor:
     Returns:
         The appropriate executor instance
     """
-    if model == "opencode-local" or model.startswith("anthropic/") or model.startswith("openai/"):
+    # Route to OpenCode for opencode-local or provider/model format
+    if (model == "opencode-local" or
+        model.startswith("anthropic/") or
+        model.startswith("openai/") or
+        model.startswith("opencode/")):
         return opencode_executor
     # Default to codex for "codex-local" or any other model
     return codex_executor

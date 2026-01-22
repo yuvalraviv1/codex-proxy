@@ -524,7 +524,7 @@ codex-proxy/
 2. **Backend Selection**: Based on model name:
    - `codex-local` → Codex CLI
    - `opencode-local` → OpenCode CLI (uses `OPENCODE_MODEL` env var)
-   - `anthropic/*` or `openai/*` → OpenCode CLI (uses specified model directly)
+   - `anthropic/*`, `openai/*`, or `opencode/*` → OpenCode CLI (uses specified model directly)
 3. **Execution**:
    - **Codex**: `codex e <prompt> --skip-git-repo-check --json`
    - **OpenCode**: `opencode run <prompt> --model <model> --format json`
