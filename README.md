@@ -22,14 +22,41 @@ A FastAPI server that provides an OpenAI-compatible API interface to local CLI t
 
 ## Quick Start with uvx (Recommended)
 
-The easiest way to run codex-proxy is using `uvx`, which doesn't require cloning the repository or managing virtual environments:
+The easiest way to run codex-proxy is using `uvx`, which doesn't require cloning the repository or managing virtual environments.
+
+### Basic Usage
 
 ```bash
-# Run directly from GitHub
+# Run directly from GitHub (uses default settings)
 uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy
 ```
 
-You can also pass command-line options:
+### Selecting OpenCode Model
+
+Pass environment variables inline to configure the OpenCode model:
+
+```bash
+# Use Claude via OpenCode
+OPENCODE_MODEL=anthropic/claude-sonnet-4 uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy
+
+# Use Grok (free tier)
+OPENCODE_MODEL=opencode/grok-code uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy
+
+# Use GPT-4o via OpenCode
+OPENCODE_MODEL=openai/gpt-4o uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy
+```
+
+### Running from a Specific Branch
+
+```bash
+# Run from a feature branch
+uvx --from git+https://github.com/yuvalraviv1/codex-proxy@branch-name codex-proxy
+
+# Run from a specific tag or commit
+uvx --from git+https://github.com/yuvalraviv1/codex-proxy@v1.0.0 codex-proxy
+```
+
+### Command-Line Options
 
 ```bash
 # Run on custom host/port
@@ -38,11 +65,25 @@ uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy --host 127
 # Run with auto-reload for development
 uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy --reload
 
-# Show help
+# Show all available options
 uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy --help
 ```
 
-**Note**: You'll still need to configure environment variables. Create a `.env` file in your current directory:
+### Full Configuration Example
+
+Combine environment variables for complete configuration:
+
+```bash
+# Full configuration with API keys and OpenCode model
+API_KEYS=sk-my-key-1,sk-my-key-2 \
+OPENCODE_MODEL=anthropic/claude-sonnet-4 \
+LOG_LEVEL=debug \
+uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy --port 8080
+```
+
+### Using a .env File
+
+For persistent configuration, create a `.env` file in your working directory:
 
 ```bash
 # Download the example .env file
@@ -50,6 +91,9 @@ curl -o .env https://raw.githubusercontent.com/yuvalraviv1/codex-proxy/main/.env
 
 # Edit it with your settings
 nano .env
+
+# Run (will automatically pick up .env from current directory)
+uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy
 ```
 
 ## Installation (Traditional Method)
@@ -101,7 +145,19 @@ The following environment variables can be configured in your `.env` file:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `OPENCODE_PATH` | Path to opencode binary (empty = auto-detect) | Auto-detect |
-| `OPENCODE_MODEL` | OpenCode model (format: provider/model) | `anthropic/claude-sonnet-4` |
+| `OPENCODE_MODEL` | OpenCode model (format: provider/model) | `opencode/grok-code` |
+
+**Available OpenCode Models:**
+
+| Model | Provider | Notes |
+|-------|----------|-------|
+| `opencode/grok-code` | OpenCode | Free tier, good for testing |
+| `anthropic/claude-sonnet-4` | Anthropic | Requires Anthropic API key |
+| `anthropic/claude-3-5-sonnet` | Anthropic | Requires Anthropic API key |
+| `openai/gpt-4o` | OpenAI | Requires OpenAI API key |
+| `openai/gpt-4o-mini` | OpenAI | Requires OpenAI API key |
+
+See [OpenCode documentation](https://opencode.ai/docs) for the full list of supported models.
 
 ### Cross-Platform Path Detection
 
@@ -187,11 +243,27 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 ### Chat Completion with OpenCode
 
 ```bash
+# Use the default OpenCode model (configured via OPENCODE_MODEL env var)
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Authorization: Bearer sk-local-key1" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "opencode-local",
+    "messages": [
+      {"role": "user", "content": "Explain quantum computing"}
+    ]
+  }'
+```
+
+You can also specify a specific OpenCode model directly in the request:
+
+```bash
+# Use Claude via OpenCode
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Authorization: Bearer sk-local-key1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "anthropic/claude-sonnet-4",
     "messages": [
       {"role": "user", "content": "Explain quantum computing"}
     ]
@@ -449,10 +521,13 @@ codex-proxy/
 ## How It Works
 
 1. **Request Flow**: Client sends OpenAI-compatible request → FastAPI validates → Routes to appropriate backend
-2. **Backend Selection**: Based on model name (`codex-local` → Codex, `opencode-local` → OpenCode)
+2. **Backend Selection**: Based on model name:
+   - `codex-local` → Codex CLI
+   - `opencode-local` → OpenCode CLI (uses `OPENCODE_MODEL` env var)
+   - `anthropic/*` or `openai/*` → OpenCode CLI (uses specified model directly)
 3. **Execution**:
    - **Codex**: `codex e <prompt> --skip-git-repo-check --json`
-   - **OpenCode**: `opencode run <prompt> --format json`
+   - **OpenCode**: `opencode run <prompt> --model <model> --format json`
 4. **Response Mapping**: Parses CLI output and converts to OpenAI format
 5. **Streaming**: JSON events are converted to Server-Sent Events (SSE) format
 6. **Non-Streaming**: Full CLI output is parsed and returned as complete response
