@@ -1,23 +1,24 @@
-# Codex OpenAI Proxy
+# CLI Proxy
 
-A FastAPI server that provides an OpenAI-compatible API interface to the local `codex` CLI tool. This allows you to use codex with tools like OpenWebUI and other applications that expect the OpenAI API format.
-
-This project also includes research and tooling for direct interaction with the ChatGPT backend Codex API.
+A FastAPI server that provides an OpenAI-compatible API interface to local CLI tools like **Codex** and **OpenCode**. This allows you to use these tools with OpenWebUI and other applications that expect the OpenAI API format.
 
 ## Features
 
 - OpenAI-compatible API endpoints (`/v1/chat/completions`, `/v1/models`)
+- **Dual backend support**: Codex CLI and OpenCode CLI
 - Support for both streaming and non-streaming responses
 - API key authentication
-- Exposes codex as `codex-local` model
+- Exposes `codex-local` and `opencode-local` models
+- Cross-platform CLI auto-detection (macOS, Linux, Windows)
 - Automatic JSON event parsing for streaming
 - Comprehensive error handling and logging
-- Direct ChatGPT Codex API testing utilities
 
 ## Prerequisites
 
 - Python 3.13+
-- [Codex CLI](https://github.com/openai/codex) installed and accessible
+- At least one of the following CLIs installed:
+  - [Codex CLI](https://github.com/openai/codex)
+  - [OpenCode CLI](https://opencode.ai)
 
 ## Quick Start with uvx (Recommended)
 
@@ -71,28 +72,44 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-5. Edit `.env` and configure your settings:
-```env
-API_KEYS=sk-local-key1,sk-local-key2
-HOST=0.0.0.0
-PORT=8000
-CODEX_PATH=/opt/homebrew/bin/codex
-CODEX_MODEL=gpt-5.2-codex
-LOG_LEVEL=info
-```
+5. Edit `.env` and configure your settings (see `.env.example` for all options)
 
 ## Configuration
 
 The following environment variables can be configured in your `.env` file:
+
+### Server Settings
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `API_KEYS` | Comma-separated list of valid API keys | Empty (no auth) |
 | `HOST` | Server bind address | `0.0.0.0` |
 | `PORT` | Server port | `8000` |
-| `CODEX_PATH` | Path to codex binary | `/opt/homebrew/bin/codex` |
-| `CODEX_MODEL` | Codex model to use | `gpt-5.2-codex` |
 | `LOG_LEVEL` | Logging level (debug/info/warning/error) | `info` |
+
+### Codex CLI Settings
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CODEX_PATH` | Path to codex binary (empty = auto-detect) | Auto-detect |
+| `CODEX_MODEL` | Codex model to use | `o3` |
+| `CODEX_SANDBOX` | Sandbox mode | `read-only` |
+| `CODEX_FULL_AUTO` | Enable full auto mode | `false` |
+
+### OpenCode CLI Settings
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENCODE_PATH` | Path to opencode binary (empty = auto-detect) | Auto-detect |
+| `OPENCODE_MODEL` | OpenCode model (format: provider/model) | `anthropic/claude-sonnet-4` |
+
+### Cross-Platform Path Detection
+
+Both CLI paths support auto-detection. Leave the path empty to automatically find the binary:
+
+- **macOS**: Checks `/opt/homebrew/bin/` (Apple Silicon), `/usr/local/bin/` (Intel)
+- **Linux**: Checks `/usr/local/bin/`, `/usr/bin/`, `~/.local/bin/`
+- **Windows**: Checks common installation paths or relies on PATH
 
 ## Running the Server
 
@@ -153,7 +170,7 @@ curl http://localhost:8000/v1/models \
   -H "Authorization: Bearer sk-local-key1"
 ```
 
-### Chat Completion (Non-Streaming)
+### Chat Completion with Codex
 
 ```bash
 curl -X POST http://localhost:8000/v1/chat/completions \
@@ -167,16 +184,30 @@ curl -X POST http://localhost:8000/v1/chat/completions \
   }'
 ```
 
-### Chat Completion (Streaming)
+### Chat Completion with OpenCode
 
 ```bash
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Authorization: Bearer sk-local-key1" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "codex-local",
+    "model": "opencode-local",
     "messages": [
       {"role": "user", "content": "Explain quantum computing"}
+    ]
+  }'
+```
+
+### Streaming Response
+
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Authorization: Bearer sk-local-key1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "opencode-local",
+    "messages": [
+      {"role": "user", "content": "Write a haiku about coding"}
     ],
     "stream": true
   }'
@@ -378,12 +409,14 @@ pytest tests/test_tools.py -v
 
 ## Integration with OpenWebUI
 
-1. Start the Codex OpenAI Proxy server
+1. Start the CLI Proxy server
 2. In OpenWebUI, go to Settings → Connections
 3. Add a new OpenAI connection:
    - Base URL: `http://localhost:8000/v1`
    - API Key: One of your configured keys (e.g., `sk-local-key1`)
-4. The `codex-local` model should now appear in OpenWebUI's model selector
+4. Available models will appear in OpenWebUI's model selector:
+   - `codex-local` - Uses Codex CLI backend
+   - `opencode-local` - Uses OpenCode CLI backend
 
 ## Project Structure
 
@@ -392,30 +425,37 @@ codex-proxy/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py              # FastAPI application
-│   ├── config.py            # Settings management
+│   ├── config.py            # Settings management (cross-platform)
+│   ├── cli.py               # CLI entry point for uvx
 │   ├── auth.py              # API key authentication
 │   ├── models/
-│   │   ├── openai.py       # OpenAI schemas
-│   │   └── codex.py        # Codex models
+│   │   ├── openai.py        # OpenAI schemas
+│   │   └── codex.py         # Shared response models
 │   ├── services/
-│   │   ├── codex_executor.py   # CLI execution
-│   │   └── response_mapper.py  # Format conversion
+│   │   ├── base_executor.py     # Base executor interface
+│   │   ├── codex_executor.py    # Codex CLI execution
+│   │   ├── opencode_executor.py # OpenCode CLI execution
+│   │   └── response_mapper.py   # Format conversion
 │   └── routers/
-│       ├── chat.py          # Chat completions
+│       ├── chat.py          # Chat completions (routes to appropriate backend)
 │       └── models.py        # Models listing
 ├── .env                     # Configuration (not in git)
-├── .env.example            # Example configuration
-├── requirements.txt        # Python dependencies
-└── README.md              # This file
+├── .env.example             # Example configuration
+├── pyproject.toml           # Package configuration for uvx
+├── requirements.txt         # Python dependencies
+└── README.md                # This file
 ```
 
 ## How It Works
 
-1. **Request Flow**: Client sends OpenAI-compatible request → FastAPI validates → Converts to codex prompt
-2. **Execution**: Executes `codex e <prompt> --skip-git-repo-check --json` (for streaming) or without `--json` (for non-streaming)
-3. **Response Mapping**: Parses codex output and converts to OpenAI format
-4. **Streaming**: Codex JSON events are converted to Server-Sent Events (SSE) format
-5. **Non-Streaming**: Full codex output is parsed and returned as complete response
+1. **Request Flow**: Client sends OpenAI-compatible request → FastAPI validates → Routes to appropriate backend
+2. **Backend Selection**: Based on model name (`codex-local` → Codex, `opencode-local` → OpenCode)
+3. **Execution**:
+   - **Codex**: `codex e <prompt> --skip-git-repo-check --json`
+   - **OpenCode**: `opencode run <prompt> --format json`
+4. **Response Mapping**: Parses CLI output and converts to OpenAI format
+5. **Streaming**: JSON events are converted to Server-Sent Events (SSE) format
+6. **Non-Streaming**: Full CLI output is parsed and returned as complete response
 
 ## Known Limitations
 
@@ -431,13 +471,14 @@ codex-proxy/
 
 ## Troubleshooting
 
-### Codex not found
+### CLI not found
 
-If you get an error about codex not being found:
+If you get an error about codex or opencode not being found:
 
-1. Check that codex is installed: `which codex`
-2. Update `CODEX_PATH` in `.env` to the correct path
-3. Ensure codex is executable: `chmod +x /path/to/codex`
+1. Check the CLI is installed: `which codex` or `which opencode`
+2. Set the path explicitly in `.env`: `CODEX_PATH=/path/to/codex` or `OPENCODE_PATH=/path/to/opencode`
+3. Ensure the binary is executable: `chmod +x /path/to/cli`
+4. Check the `/health` endpoint to see which backends are available
 
 ### Authentication errors
 
@@ -475,7 +516,7 @@ To contribute or modify the code:
 
 ## License
 
-This project is provided as-is for use with the Codex CLI tool.
+This project is provided as-is for use with CLI tools.
 
 ## Support
 
@@ -483,4 +524,6 @@ For issues and questions:
 
 - Check the [Troubleshooting](#troubleshooting) section
 - Review the server logs (set `LOG_LEVEL=debug` for verbose output)
-- Consult the [Codex CLI documentation](https://github.com/openai/codex)
+- CLI Documentation:
+  - [Codex CLI](https://github.com/openai/codex)
+  - [OpenCode CLI](https://opencode.ai/docs)

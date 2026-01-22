@@ -149,7 +149,47 @@ class ResponseMapper:
         has_tool_calls = False
 
         async for event in events:
-            if event.type == "item.completed" and event.item:
+            # Handle generic "message" events (used by OpenCode and generic backends)
+            if event.type == "message" and event.content:
+                text = event.content
+
+                if first_chunk:
+                    # First chunk includes role
+                    chunk = ChatCompletionStreamResponse(
+                        id=chat_id,
+                        created=created,
+                        model="codex-local",
+                        choices=[
+                            StreamChoice(
+                                index=0,
+                                delta=ChoiceDelta(
+                                    role="assistant",
+                                    content=text
+                                ),
+                                finish_reason=None
+                            )
+                        ]
+                    )
+                    first_chunk = False
+                else:
+                    # Subsequent chunks only have content
+                    chunk = ChatCompletionStreamResponse(
+                        id=chat_id,
+                        created=created,
+                        model="codex-local",
+                        choices=[
+                            StreamChoice(
+                                index=0,
+                                delta=ChoiceDelta(content=text),
+                                finish_reason=None
+                            )
+                        ]
+                    )
+
+                yield f"data: {chunk.model_dump_json()}\n\n"
+
+            # Handle Codex-specific "item.completed" events
+            elif event.type == "item.completed" and event.item:
                 item_type = event.item.get("type")
 
                 # Handle function_call items if tools are enabled
@@ -230,6 +270,11 @@ class ResponseMapper:
             elif event.type == "turn.completed" and event.usage:
                 usage_data = event.usage
                 logger.info(f"Turn completed with usage: {usage_data}")
+
+            # Handle generic "done" events (used by OpenCode)
+            elif event.type == "done":
+                logger.debug("Received done event")
+                # This will fall through to the finish logic below
 
         # Determine finish reason
         finish_reason = "tool_calls" if has_tool_calls else "stop"

@@ -2,11 +2,10 @@
 
 import sys
 import logging
-from typing import Optional
 
 
 def main():
-    """Main entry point for the codex-proxy CLI."""
+    """Main entry point for the CLI Proxy."""
     import uvicorn
     from app.config import settings
 
@@ -25,10 +24,10 @@ def main():
     # Check for --help
     if "--help" in sys.argv or "-h" in sys.argv:
         print("""
-Codex OpenAI Proxy
-==================
+CLI Proxy
+=========
 
-OpenAI-compatible API proxy for local codex CLI.
+OpenAI-compatible API proxy for Codex and OpenCode CLIs.
 
 Usage:
   codex-proxy [options]
@@ -39,14 +38,27 @@ Options:
   --port PORT         Bind to this port (default: from .env or 8000)
   --reload            Enable auto-reload on code changes
 
+Supported Backends:
+  - Codex CLI (https://github.com/openai/codex) -> model: codex-local
+  - OpenCode CLI (https://opencode.ai) -> model: opencode-local
+
 Configuration:
   Set environment variables in .env file:
+
+  Server:
     - API_KEYS: Comma-separated list of valid API keys
     - HOST: Server bind address (default: 0.0.0.0)
     - PORT: Server port (default: 8000)
-    - CODEX_PATH: Path to codex binary
-    - CODEX_MODEL: Codex model to use
     - LOG_LEVEL: Logging level (debug/info/warning/error)
+
+  Codex:
+    - CODEX_PATH: Path to codex binary (empty = auto-detect)
+    - CODEX_MODEL: Codex model to use (default: o3)
+    - CODEX_SANDBOX: Sandbox mode (default: read-only)
+
+  OpenCode:
+    - OPENCODE_PATH: Path to opencode binary (empty = auto-detect)
+    - OPENCODE_MODEL: OpenCode model (default: anthropic/claude-sonnet-4)
 
 Examples:
   codex-proxy
@@ -74,7 +86,7 @@ For more information, visit: https://github.com/yuvalraviv1/codex-proxy
     except (ValueError, IndexError):
         pass
 
-    logger.info(f"Starting Codex OpenAI Proxy on {host}:{port}")
+    logger.info(f"Starting CLI Proxy on {host}:{port}")
     logger.info(f"Reload enabled: {reload_enabled}")
 
     # Run the server

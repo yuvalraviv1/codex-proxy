@@ -14,12 +14,15 @@ class CodexFunctionCall(BaseModel):
 
 
 class CodexJsonEvent(BaseModel):
-    """A single event from codex --json output."""
+    """A single event from codex --json output or generic CLI event."""
 
     type: str
     thread_id: Optional[str] = None
     item: Optional[Dict[str, Any]] = None
     usage: Optional[Dict[str, Any]] = None
+    # Generic content field for simpler event formats (e.g., OpenCode)
+    content: Optional[str] = None
+    error: Optional[str] = None
 
     def extract_function_call(self) -> Optional[CodexFunctionCall]:
         """Extract function call if this event contains one."""

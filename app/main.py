@@ -25,34 +25,50 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
     # Startup
-    logger.info("Starting Codex OpenAI Proxy")
-    validate_codex()
+    logger.info("Starting CLI Proxy (Codex/OpenCode)")
+    validate_cli_backends()
     logger.info(f"Server configured: host={settings.host}, port={settings.port}")
-    logger.info(f"Codex: path={settings.codex_path}, model={settings.codex_model}")
     logger.info(f"API keys configured: {len(settings.api_keys_set)}")
 
     yield
 
     # Shutdown
-    logger.info("Shutting down Codex OpenAI Proxy")
+    logger.info("Shutting down CLI Proxy")
 
 
-def validate_codex():
-    """Verify codex CLI is accessible."""
-    if not shutil.which(settings.codex_path):
+def validate_cli_backends():
+    """Verify CLI backends are accessible."""
+    codex_path = settings.resolved_codex_path
+    opencode_path = settings.resolved_opencode_path
+
+    codex_available = shutil.which(codex_path) is not None
+    opencode_available = shutil.which(opencode_path) is not None
+
+    if codex_available:
+        logger.info(f"Codex CLI found at {codex_path} (model: {settings.codex_model})")
+    else:
+        logger.warning(f"Codex CLI not found at {codex_path} - codex-local model will not work")
+
+    if opencode_available:
+        logger.info(f"OpenCode CLI found at {opencode_path} (model: {settings.opencode_model})")
+    else:
+        logger.warning(f"OpenCode CLI not found at {opencode_path} - opencode-local model will not work")
+
+    if not codex_available and not opencode_available:
         error_msg = (
-            f"Codex CLI not found at {settings.codex_path}. "
-            "Please install codex or update CODEX_PATH environment variable."
+            "No CLI backends found! Please install at least one of:\n"
+            "  - Codex CLI: https://github.com/openai/codex\n"
+            "  - OpenCode CLI: https://opencode.ai\n"
+            "Or set CODEX_PATH / OPENCODE_PATH environment variables."
         )
         logger.error(error_msg)
         raise RuntimeError(error_msg)
-    logger.info(f"Codex CLI found at {settings.codex_path}")
 
 
 # Create FastAPI application
 app = FastAPI(
-    title="Codex OpenAI Proxy",
-    description="OpenAI-compatible API proxy for local codex CLI",
+    title="CLI Proxy",
+    description="OpenAI-compatible API proxy for Codex and OpenCode CLIs",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -95,11 +111,24 @@ app.include_router(models.router)
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
+    codex_path = settings.resolved_codex_path
+    opencode_path = settings.resolved_opencode_path
+
     return {
         "status": "healthy",
         "version": "1.0.0",
-        "codex_path": settings.codex_path,
-        "model": settings.codex_model
+        "backends": {
+            "codex": {
+                "path": codex_path,
+                "available": shutil.which(codex_path) is not None,
+                "model": settings.codex_model
+            },
+            "opencode": {
+                "path": opencode_path,
+                "available": shutil.which(opencode_path) is not None,
+                "model": settings.opencode_model
+            }
+        }
     }
 
 
@@ -107,9 +136,9 @@ async def health_check():
 async def root():
     """Root endpoint with API information."""
     return {
-        "name": "Codex OpenAI Proxy",
+        "name": "CLI Proxy",
         "version": "1.0.0",
-        "description": "OpenAI-compatible API proxy for local codex CLI",
+        "description": "OpenAI-compatible API proxy for Codex and OpenCode CLIs",
         "endpoints": {
             "health": "/health",
             "models": "/v1/models",

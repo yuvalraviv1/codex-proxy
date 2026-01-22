@@ -6,12 +6,13 @@ import logging
 from typing import AsyncGenerator, Optional, List
 
 from app.models.codex import CodexJsonEvent, CodexResponse, CodexUsage
+from app.services.base_executor import BaseExecutor
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 
-class CodexExecutor:
+class CodexExecutor(BaseExecutor):
     """Executes codex CLI commands and parses output."""
 
     async def execute_streaming(
@@ -118,7 +119,7 @@ class CodexExecutor:
             actual_model = model
 
         cmd = [
-            settings.codex_path,
+            settings.resolved_codex_path,
             "e",
             prompt,
             "--skip-git-repo-check",

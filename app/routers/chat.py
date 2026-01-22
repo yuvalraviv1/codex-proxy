@@ -2,26 +2,46 @@
 
 import json
 import logging
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.models.openai import (
     ChatCompletionRequest,
-    ChatCompletionResponse,
     Message,
     ToolDefinition
 )
+from app.services.base_executor import BaseExecutor
 from app.services.codex_executor import CodexExecutor
+from app.services.opencode_executor import OpenCodeExecutor
 from app.services.response_mapper import ResponseMapper
 from app.auth import verify_api_key
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/chat", tags=["chat"])
-executor = CodexExecutor()
+
+# Initialize executors
+codex_executor = CodexExecutor()
+opencode_executor = OpenCodeExecutor()
 mapper = ResponseMapper()
+
+
+def get_executor(model: str) -> BaseExecutor:
+    """
+    Get the appropriate executor based on the model name.
+
+    Args:
+        model: The model name from the request
+
+    Returns:
+        The appropriate executor instance
+    """
+    if model == "opencode-local" or model.startswith("anthropic/") or model.startswith("openai/"):
+        return opencode_executor
+    # Default to codex for "codex-local" or any other model
+    return codex_executor
 
 
 @router.post("/completions", response_model=None)
@@ -30,9 +50,10 @@ async def create_chat_completion(
     api_key: str = Depends(verify_api_key)
 ):
     """
-    Create a chat completion using codex CLI.
+    Create a chat completion using the appropriate CLI backend.
 
     Supports both streaming and non-streaming modes.
+    Routes to Codex or OpenCode based on the model name.
 
     Args:
         request: Chat completion request
@@ -41,19 +62,23 @@ async def create_chat_completion(
     Returns:
         ChatCompletionResponse (non-streaming) or StreamingResponse (streaming)
     """
+    # Get the appropriate executor for this model
+    executor = get_executor(request.model)
+    backend_name = "OpenCode" if isinstance(executor, OpenCodeExecutor) else "Codex"
+
     # Build prompt from messages with tools
     prompt = _build_prompt_from_messages(request.messages, request.tools)
     tools_enabled = bool(request.tools)
 
     logger.info(
-        f"Chat completion request: stream={request.stream}, model={request.model}, "
-        f"tools={len(request.tools) if request.tools else 0}"
+        f"Chat completion request: backend={backend_name}, stream={request.stream}, "
+        f"model={request.model}, tools={len(request.tools) if request.tools else 0}"
     )
 
     try:
         if request.stream:
             # Streaming mode
-            logger.debug("Starting streaming response")
+            logger.debug(f"Starting streaming response via {backend_name}")
             events = executor.execute_streaming(prompt, request.model)
             stream = mapper.create_streaming_response(events, tools_enabled=tools_enabled)
 
@@ -68,15 +93,15 @@ async def create_chat_completion(
             )
         else:
             # Non-streaming mode
-            logger.debug("Starting non-streaming response")
-            codex_response = await executor.execute_non_streaming(
+            logger.debug(f"Starting non-streaming response via {backend_name}")
+            response = await executor.execute_non_streaming(
                 prompt,
                 request.model
             )
-            return mapper.create_non_streaming_response(codex_response, tools_enabled=tools_enabled)
+            return mapper.create_non_streaming_response(response, tools_enabled=tools_enabled)
 
     except RuntimeError as e:
-        logger.error(f"Codex execution error: {e}")
+        logger.error(f"{backend_name} execution error: {e}")
         raise HTTPException(
             status_code=500,
             detail=str(e)
