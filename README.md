@@ -42,6 +42,9 @@ OPENCODE_MODEL=anthropic/claude-sonnet-4 uvx --from git+https://github.com/yuval
 # Use Grok (free tier)
 OPENCODE_MODEL=opencode/grok-code uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy
 
+# Use MiniMax M2.1 (free tier)
+OPENCODE_MODEL=opencode/minimax-m2.1-free uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy --port 8081
+
 # Use GPT-4o via OpenCode
 OPENCODE_MODEL=openai/gpt-4o uvx --from git+https://github.com/yuvalraviv1/codex-proxy codex-proxy
 ```
@@ -152,6 +155,7 @@ The following environment variables can be configured in your `.env` file:
 | Model | Provider | Notes |
 |-------|----------|-------|
 | `opencode/grok-code` | OpenCode | Free tier, good for testing |
+| `opencode/minimax-m2.1-free` | OpenCode | Free tier |
 | `anthropic/claude-sonnet-4` | Anthropic | Requires Anthropic API key |
 | `anthropic/claude-3-5-sonnet` | Anthropic | Requires Anthropic API key |
 | `openai/gpt-4o` | OpenAI | Requires OpenAI API key |
